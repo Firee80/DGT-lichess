@@ -1,0 +1,130 @@
+body {
+
+}
+
+.panel {
+    display: flex;
+    padding: 1rem;
+    height: calc(100vh - 2rem);
+}
+
+.panel .moves-container {
+    height: 100%;
+    width: 100%;
+    display: flex;
+
+    & > div {
+        flex: 1;
+    }
+}
+
+.panel-left {
+    display: flex;
+    justify-content: end;
+    height: calc(50vh - 4rem);
+    padding: 2rem 0;
+    flex: 1;
+
+    & > div {
+        height: 100%;
+        flex-direction: column;
+        text-align: center;
+        justify-content: space-between;
+        display: flex;
+        align-items: center;
+        position: relative;
+    }
+}
+
+.panel-left-game {
+    font-size: 18px;
+    pointer-events: none;
+    font-weight: bold;
+}
+
+.player {
+    padding: 0.25rem;
+    font-size: 18px;
+    pointer-events: none;
+    font-weight: bold;
+
+    div:nth-child(1) {
+        color: #bababa;
+    }
+    div:nth-child(2) {
+        color: #999;
+    }
+}
+
+.panel-center {
+    flex: 8;
+}
+.panel-center-top {
+    height: 50%;
+}
+.panel-center-bottom {
+    height: 50%;
+    display: flex;
+    /*position: static;*/
+}
+.panel-center-bottom > div {
+    padding: 0;
+    margin: 0;
+    flex: 1;
+    display: flex;
+    align-items: center;
+    flex-direction: column;
+}
+
+.panel-right {
+    flex: 2;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    padding: 0.5rem;
+
+    button {
+        margin: 1rem 0;
+        width: 100%;
+        position: relative;
+    }
+
+    .lichess-password {
+        width: 100%;
+        text-align: center;
+
+        input {
+            box-sizing: border-box;
+            width: 100%;
+            font-size: larger;
+            padding: 0.5rem;
+            background-color: #161512;
+        }
+    }
+
+    .time-choice,
+    .increment-choice {
+        text-align: center;
+        width: 100%;
+
+        input {
+            width: 70%;
+        }
+    }
+
+    .color-choice,
+    .rated-choice {
+        margin: 0.5rem 0;
+        text-align: center;
+
+        input {
+            margin-right: 1rem;
+            margin-left: 0.25rem;
+        }
+    }
+
+    .rating-range-choice {
+        margin: 0.5rem 0;
+        text-align: center;
+    }
+}

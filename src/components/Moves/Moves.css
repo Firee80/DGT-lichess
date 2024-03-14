@@ -1,0 +1,56 @@
+h3 {
+    margin: 0;
+}
+
+.moves-container {
+    text-align: center;
+    font-size: larger;
+    color: #bababa;
+    font-weight: bold;
+    margin: 0;
+
+    span:first-child {
+        color: #999;
+    }
+
+    .moves {
+        width: 50%;
+        height: 100%;
+    }
+
+    .mvs {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        height: 90%;
+        overflow: auto;
+        user-select: none;
+        align-items: center;
+        grid-auto-rows: 40px;
+    }
+
+    .odd {
+    }
+    .even {
+    }
+
+    .selected {
+        color: #F5F5F5;
+    }
+
+    .buttons {
+        text-align: center;
+        margin: auto;
+        width: 100%;
+        height: 10%;
+    }
+
+    .moves-chessboard {
+    }
+
+    .moves-chessboard > div {
+        height: 100%;
+        align-items: center;
+        display: flex;
+        flex-direction: column;
+    }
+}
