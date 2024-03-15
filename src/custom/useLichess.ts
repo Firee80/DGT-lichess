@@ -300,6 +300,7 @@ export function useLichess(): ILichess {
                 clock,
                 rated,
                 state,
+                initialFen,
             } = data;
 
             // @ts-ignore
@@ -346,8 +347,9 @@ export function useLichess(): ILichess {
             if (state?.moves) {
                 updateMoves(state.moves, myClr);
             } else {
+                const fen = initialFen === 'startpos' ? 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR' : initialFen;
                 setMoves([]);
-                setFEN('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR');
+                setFEN(fen);
             }
         }
 
@@ -393,6 +395,7 @@ export function useLichess(): ILichess {
 
         const onMessage = (data: any) => {
             const { type } = data;
+            console.log(type, data);
 
             if (type === MessageType.GameFull) {
                 onGameFullMessage(data);

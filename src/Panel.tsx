@@ -52,10 +52,10 @@ export function Panel() {
     }, []);
 
     useEffect(() => {
-        if (!isPlaying || !myTurn) {
+        if (!myTurn) {
             return;
         }
-        // is playing and my turn
+        // my turn
         if (lichessFEN !== dgtFEN) {
             // boards off sync
             const last = lichessMoves[lichessMoves.length - 1];
@@ -75,7 +75,7 @@ export function Panel() {
             // @ts-ignore
             window.dgt?.clock?.clearText?.();
         }
-    }, [myTurn, lichessMoves, lichessFEN, dgtFEN, isPlaying, lastMoveMessage]);
+    }, [myTurn, lichessMoves, lichessFEN, dgtFEN, lastMoveMessage]);
 
     useEffect(() => {
         if (!isPlaying || !lichessConnected || !dgtConnected || !myTurn) {
