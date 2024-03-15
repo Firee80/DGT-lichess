@@ -266,6 +266,10 @@ export function useLichess(): ILichess {
             return;
         }
 
+        if (!('dgt' in window)) {
+            console.warn('DGT board not found!');
+        }
+
         await disconnect();
 
         const {
@@ -366,7 +370,8 @@ export function useLichess(): ILichess {
               status === GameStatus.Aborted ||
               status === GameStatus.OutOfTime ||
               status === GameStatus.Resign ||
-              status === GameStatus.Mate
+              status === GameStatus.Mate ||
+              status === GameStatus.Draw
             ) {
                 // @ts-ignore
                 window.dgt?.sendCustom?.(0x2b, 0x04, 0x03, 0x0b, 0x10, 0x00);
@@ -376,7 +381,9 @@ export function useLichess(): ILichess {
                 setGameResult(GameResult.WhiteWon);
             } else if (winner === Color.Black) {
                 setGameResult(GameResult.BlackWon);
-            } else if (winner) {
+            }
+
+            if (status === GameStatus.Draw) {
                 setGameResult(GameResult.Draw);
             }
 
@@ -603,6 +610,7 @@ enum GameStatus {
     Resign = 'resign',
     Mate = 'mate',
     Started = 'started',
+    Draw = 'draw',
 }
 
 enum MessageType {
