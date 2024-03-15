@@ -440,10 +440,14 @@ export function useLichess(): ILichess {
             method: "POST",
         });
 
-        const result = await readStream()(stream);
-
-        // TODO: handle error (remove cache move)
-        console.log('Move result', { result });
+        if (stream.status !== 200 && cacheMove) {
+            // remove cached move
+            setMoves(moves => {
+                const newMoves = [...moves];
+                newMoves.pop();
+                return newMoves;
+            })
+        }
 
         return;
     }

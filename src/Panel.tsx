@@ -60,7 +60,7 @@ export function Panel() {
             // boards off sync
             const last = lichessMoves[lichessMoves.length - 1];
 
-            if (last) {
+            if (last && last.color !== myColor) {
                 const notation = getLongAlgebraicNotation(last);
                 const text = `${notation.toUpperCase()}`
 
@@ -75,7 +75,7 @@ export function Panel() {
             // @ts-ignore
             window.dgt?.clock?.clearText?.();
         }
-    }, [myTurn, lichessMoves, lichessFEN, dgtFEN, lastMoveMessage]);
+    }, [myTurn, lichessMoves, lichessFEN, dgtFEN, lastMoveMessage, myColor]);
 
     useEffect(() => {
         if (!isPlaying || !lichessConnected || !dgtConnected || !myTurn) {
