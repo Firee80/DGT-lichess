@@ -15,11 +15,17 @@ export function useLichess(): ILichess {
     const [seekLoading, setSeekLoading] = useState<boolean>(false);
     const [whiteTime, setWhiteTime] = useState<number>(0);
     const [blackTime, setBlackTime] = useState<number>(0);
-    const [gameResult, setGameResult] = useState<string>('');
+    const [gameResult, setGameResult] = useState<GameResult|undefined>();
     const [blackProfile, setBlackProfile] = useState<IProfile|undefined>();
     const [whiteProfile, setWhiteProfile] = useState<IProfile|undefined>();
     const [game, setGame] = useState<IGamePartial|undefined>();
 
+    // update pieces from fen change
+    useEffect(() => {
+        setPieces(convertFENToPieces(fen));
+    }, [fen]);
+
+    // show opponent name + rating at game start on DGT clock
     useEffect(() => {
         if (!isPlaying || !blackProfile || !whiteProfile || !profile) {
             return;
@@ -47,8 +53,9 @@ export function useLichess(): ILichess {
         })
     }, [blackProfile, whiteProfile, profile, isPlaying]);
 
+    // show game result at game end on DGT clock
     useEffect(() => {
-        if (gameResult) {
+        if (gameResult && !isPlaying) {
             setTimeout(() => {
                 // @ts-ignore
                 window.dgt?.clock?.setText?.(gameResult)
@@ -59,10 +66,15 @@ export function useLichess(): ILichess {
                 }, 10000)
             }, 100)
         }
-    }, [gameResult]);
+    }, [gameResult, isPlaying]);
 
+    // update times on DGT clock
     useEffect(() => {
-        const setTime = (wTime: any, bTime: any, run: any) => {
+        if (seekLoading || !('dgt' in window)) {
+            return;
+        }
+
+        const setTime = (wTime: number, bTime: number, runClock: number) => {
             const wSeconds = Math.floor(wTime / 1000);
             const wMinutes = Math.floor(wSeconds / 60);
             const wLeftSeconds = wSeconds - (wMinutes * 60);
@@ -72,23 +84,19 @@ export function useLichess(): ILichess {
             const bLeftSeconds = bSeconds - (bMinutes * 60);
 
             // @ts-ignore
-            window.dgt?.clock?.setTime?.(wMinutes, wLeftSeconds, bMinutes, bLeftSeconds, run)
-        }
-
-        if (seekLoading) {
-            return;
+            window.dgt.clock.setTime(wMinutes, wLeftSeconds, bMinutes, bLeftSeconds, runClock)
         }
 
         if (!isPlaying) {
             setTime(whiteTime, blackTime, 0);
         } else {
-            const turn = myTurn ? (myColor === Color.White ? 1 : 2) : (myColor === Color.White ? 2 : 1);
+            const runClock = myTurn ? (myColor === Color.White ? 1 : 2) : (myColor === Color.White ? 2 : 1);
 
-            setTime(whiteTime, blackTime, turn);
+            setTime(whiteTime, blackTime, runClock);
         }
     }, [whiteTime, blackTime, myColor, myTurn, isPlaying, seekLoading]);
 
-    async function getAccount(password: string) {
+    async function getAccount(password: string): Promise<ILichessProfile|undefined> {
         if (!password || !password.length) {
             return;
         }
@@ -103,41 +111,40 @@ export function useLichess(): ILichess {
             return;
         }
 
-        const resText= await result.text();
+        const responseText= await result.text();
 
-        return JSON.parse(resText);
+        const {
+            profile,
+            username,
+            perfs,
+            playing,
+        } = JSON.parse(responseText);
+
+        return {
+              userName: username,
+              firstName: profile.firstName,
+              lastName: profile.lastName,
+              rapidRating: perfs.rapid.rating,
+              blitzRating: perfs.blitz.rating,
+              bulletRating: perfs.bullet.rating,
+              currentGame: playing?.split('/')?.[3] ?? '',
+          }
     }
 
-    async function connect(password: string): Promise<ILichessProfile|undefined> {
-        setSeekLoading(false);
+    async function connect(password: string, handleOngoingGame: boolean = true): Promise<ILichessProfile|undefined> {
+        const profile = await getAccount(password);
 
-        const prof = await getAccount(password);
-        const connected = Boolean(prof);
-
-        if (!connected) {
-            setProfile(undefined);
-            setIsConnected(false)
+        if (!profile) {
+            await disconnect();
             return;
         }
 
-        const id = prof?.playing?.split('/')?.[3] ?? ''
-
-        const profile: ILichessProfile = {
-            userName: prof?.username ?? '',
-            firstName: prof?.profile?.firstName ?? '',
-            lastName: prof?.profile?.lastName ?? '',
-            rapidRating: prof?.perfs?.rapid?.rating ?? 0,
-            blitzRating: prof?.perfs?.blitz?.rating ?? 0,
-            bulletRating: prof?.perfs?.bullet?.rating ?? 0,
-            currentGame: id,
-        }
-
-        setGameId(id)
         setProfile(profile);
+        setGameId(profile.currentGame ?? '')
         setIsConnected(true)
 
-        if (id) {
-            await handleGameStream(id, password);
+        if (profile.currentGame && handleOngoingGame) {
+            await handleGameStream(profile.currentGame, password);
         }
 
         return profile;
@@ -146,7 +153,6 @@ export function useLichess(): ILichess {
     async function disconnect() {
         setSeekLoading(false);
         setFEN('');
-        setPieces([]);
         setMoves([]);
         setProfile(undefined);
         setIsConnected(false);
@@ -156,7 +162,7 @@ export function useLichess(): ILichess {
         setMyColor(undefined);
         setWhiteTime(0);
         setBlackTime(0);
-        setGameResult('');
+        setGameResult(undefined);
         setBlackProfile(undefined);
         setWhiteProfile(undefined);
         setGame(undefined);
@@ -178,13 +184,20 @@ export function useLichess(): ILichess {
     }
 
     async function seekGameId(parameters: ISeekParameters, password: string): Promise<string|undefined> {
-        const profile = await connect(password);
+        const profile = await connect(password, false);
 
-        if (profile && profile.currentGame) {
-            return profile.currentGame;
+        if (!profile) {
+            return;
         }
 
-        setSeekLoading(true);
+        const {
+            rapidRating,
+            currentGame
+        } = profile;
+
+        if (currentGame) {
+            return currentGame;
+        }
 
         const {
             minutes,
@@ -199,11 +212,8 @@ export function useLichess(): ILichess {
             time: minutes,
             increment,
             rated,
+            ratingRange:  `${rapidRating + negRange}-${rapidRating + posRange}`,
         };
-
-        if (profile?.rapidRating) {
-            Object.assign(game, { ratingRange:  `${profile.rapidRating + negRange}-${profile.rapidRating + posRange}` });
-        }
 
         if (color) {
             Object.assign(game, { color });
@@ -212,7 +222,7 @@ export function useLichess(): ILichess {
         const body = Object.keys(game).reduce((result, key) => {
             // @ts-ignore
             return result.length ? `${result}&${key}=${game[key]}` : `${key}=${game[key]}`;
-        },'');
+        }, '');
 
         const stream = await fetch('https://lichess.org/api/board/seek', {
             headers: {
@@ -223,154 +233,173 @@ export function useLichess(): ILichess {
             body: body
         });
 
-        await readStream(() => {})(stream);
+        await readStream()(stream);
 
-        return (await connect(password))?.currentGame;
+        return (await connect(password, false))?.currentGame;
     }
 
-    function updateMoves(mvs: any, myColor: any) {
-        const movesLength = mvs?.length ?? 0;
-
-        setPieces([]);
-        setMoves([]);
-        setFEN('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR');
-
+    function updateMoves(mvs: string, myColor: Color = Color.White) {
+        const moves = mvs.split(' ');
         let fen = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR';
-        const moves = movesLength > 0 ? mvs?.split(' ') : [];
+        const newMoves: IMove[] = [];
 
-        moves.forEach((move: any) => {
+        moves.forEach((move: string) => {
             const newFEN = makeMove(move, fen);
             const mv = countMove(fen, newFEN);
 
             if (mv) {
-                setMoves(mvs => [...mvs, mv]);
+                newMoves.push(mv);
             }
 
             fen = newFEN;
         })
 
-        const colorTurn = (moves.length % 2) === 1 ? 'black' : 'white';
-        const myT = colorTurn === myColor;
+        const colorTurn = (moves.length % 2) === 1 ? Color.Black : Color.White;
 
-        setMyTurn(myT)
-        setPieces(convertFENToPieces(fen));
+        setMoves(newMoves);
+        setMyTurn(colorTurn === myColor)
         setFEN(fen);
     }
 
-    async function seek(parameters: ISeekParameters, password: string) {
+    async function seek(parameters: ISeekParameters, password: string): Promise<void> {
         if (!password) {
             return;
         }
 
-        disconnect();
+        await disconnect();
+
+        const {
+            minutes,
+            increment,
+        } = parameters;
 
         // @ts-ignore
-        window.dgt?.clock?.setText?.(`${parameters.minutes} + ${parameters.increment}`);
-        // SEEK 10+, SE 10+20, 10+20
+        window.dgt?.clock?.setText?.(`${minutes} + ${increment}`);
+
+        setSeekLoading(true);
 
         const id = await seekGameId(parameters, password);
 
-        if (!id) {
-            console.log('No game ID found :(');
-            // @ts-ignore
-            window.dgt?.clock?.clearText?.();
+        setSeekLoading(false);
 
-            return;
+        // @ts-ignore
+        window.dgt?.clock?.clearText?.();
+
+        if (id) {
+            await handleGameStream(id, password);
         }
-
-        await handleGameStream(id, password);
     }
 
     async function handleGameStream(gameStreamId: string, password: string) {
         let myClr: Color|undefined;
 
-        const onGameFullMessage = (obj: any) => {
+        const onGameFullMessage = (data: any) => {
+            const {
+                white,
+                black,
+                clock,
+                rated,
+                state,
+            } = data;
+
             // @ts-ignore
             window.dgt?.sendCustom?.(0x2b, 0x04, 0x03, 0x0b, 0x01, 0x00);
-            setPieces(convertFENToPieces('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR'));
-            setFEN('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR');
-            setIsPlaying(true);
-            setIsConnected(true);
-            setMoves([]);
 
             setBlackProfile({
-                name: obj.black?.name ?? '',
-                rating: obj.black?.rating ?? 0,
-                provisional: obj.black?.provisional ?? false,
-                title: obj.black?.title ?? '',
+                name: black.name,
+                rating: black.rating,
+                provisional: black.provisional ?? false,
+                title: black.title ?? '',
             })
 
             setWhiteProfile({
-                name: obj.white?.name ?? '',
-                rating: obj.white?.rating ?? 0,
-                provisional: obj.white?.provisional ?? false,
-                title: obj.white?.title ?? '',
+                name: white.name,
+                rating: white.rating,
+                provisional: white.provisional ?? false,
+                title: white.title ?? '',
             })
 
-            if (profile && obj && obj.white && obj.white.name && obj.white.name === profile.userName) {
+            if (white.name === profile?.userName) {
                 setMyColor(Color.White);
-                myClr = Color.White;
                 setMyTurn(true)
-            } else if (profile && obj && obj.black && obj.black.name && obj.black.name === profile.userName) {
+                myClr = Color.White;
+            } else if (black.name === profile?.userName) {
                 setMyColor(Color.Black);
-                myClr = Color.Black;
                 setMyTurn(false)
+                myClr = Color.Black;
             }
 
-            setWhiteTime(obj.clock?.initial ?? 0);
-            setBlackTime(obj.clock?.initial ?? 0);
+            if (state && state.wtime && state.btime) {
+                setWhiteTime(state.wtime);
+                setBlackTime(state.btime);
+            } else {
+                setWhiteTime(clock.initial);
+                setBlackTime(clock.initial);
+            }
 
             setGame({
-                minutes: Math.floor((obj.clock?.initial ?? 0) / 60 / 1000),
-                increment: (obj.clock?.increment ?? 0) / 1000,
-                rated: obj.rated ?? false,
+                minutes: Math.floor(clock.initial / 60 / 1000),
+                increment: clock.increment / 1000,
+                rated: rated ?? false,
             })
 
-            updateMoves(obj.state?.moves, myClr);
-        }
-
-        const onGameStateMessage = (obj: any) => {
-            if (obj.status === 'aborted') {
-                setIsPlaying(false);
-                // @ts-ignore
-                window.dgt?.sendCustom?.(0x2b, 0x04, 0x03, 0x0b, 0x10, 0x00);
-                return;
-            }
-
-            if (obj.status === 'outoftime' || obj.status === 'resign' || obj.status === 'mate') {
-                setIsPlaying(false);
-
-                if (obj.winner === 'white') {
-                    setGameResult('1-0');
-                } else if (obj.winner === 'black') {
-                    setGameResult('0-1');
-                } else if (obj.winner) {
-                    setGameResult('1/2-1/2');
-                }
-                // @ts-ignore
-                window.dgt?.sendCustom?.(0x2b, 0x04, 0x03, 0x0b, 0x10, 0x00);
-            }
-
-            updateMoves(obj.moves, myClr);
-
-            if (obj.wtime) {
-                setWhiteTime(obj.wtime)
-            }
-
-            if (obj.btime) {
-                setBlackTime(obj.btime)
+            if (state?.moves) {
+                updateMoves(state.moves, myClr);
+            } else {
+                setMoves([]);
+                setFEN('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR');
             }
         }
 
-        const onMessage = (obj: any) => {
-            console.log(obj);
+        const onGameStateMessage = (data: any) => {
+            const {
+                status,
+                winner,
+                moves,
+                wtime: whiteTime,
+                btime: blackTime,
+            } = data;
 
-            if (obj.type === 'gameFull') {
-                onGameFullMessage(obj);
+            if (
+              status === GameStatus.Aborted ||
+              status === GameStatus.OutOfTime ||
+              status === GameStatus.Resign ||
+              status === GameStatus.Mate
+            ) {
+                // @ts-ignore
+                window.dgt?.sendCustom?.(0x2b, 0x04, 0x03, 0x0b, 0x10, 0x00);
             }
 
-            if (obj.type === 'gameState') {
-                onGameStateMessage(obj);
+            if (winner === Color.White) {
+                setGameResult(GameResult.WhiteWon);
+            } else if (winner === Color.Black) {
+                setGameResult(GameResult.BlackWon);
+            } else if (winner) {
+                setGameResult(GameResult.Draw);
+            }
+
+            if (moves) {
+                updateMoves(moves, myClr);
+            }
+
+            if (whiteTime) {
+                setWhiteTime(whiteTime)
+            }
+
+            if (blackTime) {
+                setBlackTime(blackTime)
+            }
+        }
+
+        const onMessage = (data: any) => {
+            const { type } = data;
+
+            if (type === MessageType.GameFull) {
+                onGameFullMessage(data);
+            }
+
+            if (type === MessageType.GameState) {
+                onGameStateMessage(data);
             }
         }
 
@@ -382,7 +411,11 @@ export function useLichess(): ILichess {
             method: "GET",
         });
 
+        setIsPlaying(true);
+
         await readStream(onMessage)(stream);
+
+        setIsPlaying(false);
     }
 
     async function move(move: string, password: string, cacheMove?: IMove): Promise<void> {
@@ -404,9 +437,7 @@ export function useLichess(): ILichess {
             method: "POST",
         });
 
-        const onMessage = (obj: any) => console.log(obj);
-
-        const result = await readStream(onMessage)(stream);
+        const result = await readStream()(stream);
 
         // TODO: handle error (remove cache move)
         console.log('Move result', { result });
@@ -457,7 +488,7 @@ export function useLichess(): ILichess {
     }
 }
 
-const readStream = (processLine: any) => (response: any) => {
+const readStream = (processLine: any = () => {}) => (response: any) => {
     const reader = response.body.getReader();
     const matcher = /\r?\n/;
     const decoder = new TextDecoder();
@@ -550,11 +581,30 @@ interface IGame {
     minutes: number;
     increment: number;
     rated: boolean;
-    result: string;
+    result?: GameResult;
 }
 
 interface IGamePartial {
     minutes: number;
     increment: number;
     rated: boolean;
+}
+
+enum GameStatus {
+    Aborted = 'aborted',
+    OutOfTime = 'outoftime',
+    Resign = 'resign',
+    Mate = 'mate',
+    Started = 'started',
+}
+
+enum MessageType {
+    GameFull = 'gameFull',
+    GameState = 'gameState',
+}
+
+enum GameResult {
+    WhiteWon = '1-0',
+    BlackWon = '0-1',
+    Draw = '1/2-1/2',
 }
