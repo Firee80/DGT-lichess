@@ -78,26 +78,24 @@ export async function read(port, cbs) {
     }
 }
 
-export async function write(port, data, delay = 100) {
-    setTimeout(async () => {
-        if (!port || !port.writable || !data) {
-            return;
-        }
+export async function write(port, data) {
+    if (!port || !port.writable || !data) {
+        return;
+    }
 
-        const writer = !port.writable.locked && port.writable.getWriter();
+    const writer = !port.writable.locked && port.writable.getWriter();
 
-        if (!writer) {
-            return;
-        }
+    if (!writer) {
+        return;
+    }
 
-        try {
-            await writer.write(data);
-        } catch (e) {
-            console.log('Writer error',  { error: e, data });
-        } finally {
-            writer.releaseLock();
-        }
-    }, delay);
+    try {
+        await writer.write(data);
+    } catch (e) {
+        console.log('Writer error',  { error: e, data });
+    } finally {
+        writer.releaseLock();
+    }
 }
 
 export async function testConnection(port: any) {
