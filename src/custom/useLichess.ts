@@ -37,34 +37,17 @@ export function useLichess(): ILichess {
             rating,
         } = opponentProfile ?? {};
 
-        setTimeout(() => {
-            // @ts-ignore
-            window.dgt?.clock?.setText?.(`${name.toUpperCase()}`);
-
-            setTimeout(() => {
-                // @ts-ignore
-                window.dgt?.clock?.setText?.(`${rating}`);
-
-                setTimeout(() => {
-                    // @ts-ignore
-                    window.dgt?.clock?.clearText?.()
-                }, 4000)
-            }, 4000)
-        })
+        // @ts-ignore
+        window.dgt?.clock?.setText?.(`${name.toUpperCase()}`, 4000);
+        // @ts-ignore
+        window.dgt?.clock?.setText?.(`${rating}`, 4000);
     }, [blackProfile, whiteProfile, profile, isPlaying]);
 
     // show game result at game end on DGT clock
     useEffect(() => {
         if (gameResult && !isPlaying) {
-            setTimeout(() => {
-                // @ts-ignore
-                window.dgt?.clock?.setText?.(gameResult)
-
-                setTimeout(() => {
-                    // @ts-ignore
-                    window.dgt?.clock?.clearText?.()
-                }, 10000)
-            }, 100)
+            // @ts-ignore
+            window.dgt?.clock?.setText?.(gameResult, 10000)
         }
     }, [gameResult, isPlaying]);
 
@@ -114,7 +97,7 @@ export function useLichess(): ILichess {
         const responseText= await result.text();
 
         const {
-            profile,
+            profile: profi,
             username,
             perfs,
             playing,
@@ -122,8 +105,8 @@ export function useLichess(): ILichess {
 
         return {
               userName: username,
-              firstName: profile.firstName,
-              lastName: profile.lastName,
+              firstName: profi.firstName,
+              lastName: profi.lastName,
               rapidRating: perfs.rapid.rating,
               blitzRating: perfs.blitz.rating,
               bulletRating: perfs.bullet.rating,
@@ -132,22 +115,22 @@ export function useLichess(): ILichess {
     }
 
     async function connect(password: string, handleOngoingGame: boolean = true): Promise<ILichessProfile|undefined> {
-        const profile = await getAccount(password);
+        const prof = await getAccount(password);
 
-        if (!profile) {
+        if (!prof) {
             await disconnect();
             return;
         }
 
-        setProfile(profile);
-        setGameId(profile.currentGame ?? '')
+        setProfile(prof);
+        setGameId(prof.currentGame ?? '')
         setIsConnected(true)
 
-        if (profile.currentGame && handleOngoingGame) {
-            await handleGameStream(profile.currentGame, password);
+        if (prof.currentGame && handleOngoingGame) {
+            await handleGameStream(prof.currentGame, password, prof);
         }
 
-        return profile;
+        return prof;
     }
 
     async function disconnect() {
@@ -183,20 +166,26 @@ export function useLichess(): ILichess {
         }
     }
 
-    async function seekGameId(parameters: ISeekParameters, password: string): Promise<string|undefined> {
-        const profile = await connect(password, false);
+    async function seekGameId(parameters: ISeekParameters, password: string) {
+        let prof = await connect(password, false);
 
-        if (!profile) {
-            return;
+        if (!prof) {
+            return {
+                id: undefined,
+                profile: undefined,
+            };
         }
 
         const {
             rapidRating,
             currentGame
-        } = profile;
+        } = prof;
 
         if (currentGame) {
-            return currentGame;
+            return {
+                id: currentGame,
+                profile: prof,
+            };
         }
 
         const {
@@ -235,7 +224,12 @@ export function useLichess(): ILichess {
 
         await readStream()(stream);
 
-        return (await connect(password, false))?.currentGame;
+        prof = await connect(password, false);
+
+        return {
+            id: prof?.currentGame,
+            profile: prof,
+        };
     }
 
     function updateMoves(mvs: string, myColor: Color = Color.White) {
@@ -282,19 +276,19 @@ export function useLichess(): ILichess {
 
         setSeekLoading(true);
 
-        const id = await seekGameId(parameters, password);
+        const gameObj = await seekGameId(parameters, password);
 
         setSeekLoading(false);
 
         // @ts-ignore
         window.dgt?.clock?.clearText?.();
 
-        if (id) {
-            await handleGameStream(id, password);
+        if (gameObj?.id && gameObj?.profile) {
+            await handleGameStream(gameObj.id, password, gameObj.profile);
         }
     }
 
-    async function handleGameStream(gameStreamId: string, password: string) {
+    async function handleGameStream(gameStreamId: string, password: string, prof: ILichessProfile) {
         let myClr: Color|undefined;
 
         const onGameFullMessage = (data: any) => {
@@ -311,24 +305,26 @@ export function useLichess(): ILichess {
             window.dgt?.sendCustom?.(0x2b, 0x04, 0x03, 0x0b, 0x01, 0x00);
 
             setBlackProfile({
-                name: black.name,
-                rating: black.rating,
+                name: black.name ?? 'Anonymous',
+                rating: black.rating ?? 0,
                 provisional: black.provisional ?? false,
                 title: black.title ?? '',
             })
 
             setWhiteProfile({
-                name: white.name,
-                rating: white.rating,
+                name: white.name ?? 'Anonymous',
+                rating: white.rating ?? 0,
                 provisional: white.provisional ?? false,
                 title: white.title ?? '',
             })
 
-            if (white.name === profile?.userName) {
+            debugger;
+
+            if (white.name === prof.userName) {
                 setMyColor(Color.White);
                 setMyTurn(true)
                 myClr = Color.White;
-            } else if (black.name === profile?.userName) {
+            } else if (black.name === prof.userName) {
                 setMyColor(Color.Black);
                 setMyTurn(false)
                 myClr = Color.Black;

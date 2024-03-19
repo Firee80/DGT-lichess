@@ -87,7 +87,7 @@ function setupDGTAPI(port) {
 
       clock: {
         setTime: (...time) => setTime(port, ...time),
-        setText: text => sendTextToClock(port, text),
+        setText: (text, delay) => sendTextToClock(port, text, delay),
         clearText: () => clearTextFromClock(port),
 
         getTime: () => readClock(port),

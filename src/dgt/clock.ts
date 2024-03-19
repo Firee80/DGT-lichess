@@ -12,17 +12,23 @@ import {
 
 let commands: ClockCommand[] = [];
 let executing = false;
+let id = 0;
+let executingCmd: ClockCommand|undefined;
 
 interface ClockCommand {
     cb: () => Promise<void>;
+    name: string,
     priority: number;
     timestamp: number;
     delay?: number;
     cleanup?: () => Promise<void>;
+    id?: number;
+    reset?: boolean;
+    permanent?: boolean;
 }
 
 function stateMachine(cmd: ClockCommand) {
-    commands.push(cmd);
+    commands.push({ ...cmd, id: id++ });
 
     if (executing) {
         return;
@@ -40,45 +46,44 @@ function stateMachine(cmd: ClockCommand) {
             }
         })
 
+        let tempCommands = [...commands];
+        tempCommands = tempCommands.filter(item => item.id !== result.id)
+        commands = [...tempCommands];
+
         return result;
     }
 
     const runCommand = () => {
         executing = true;
-        const {
-            cb,
-            cleanup,
-            timestamp,
-            priority,
-            delay,
-        } = findHighestPriorityCmd();
-
-        let tempCommands = [...commands];
-        tempCommands = tempCommands.filter(item =>
-          item.timestamp !== timestamp &&
-          item.priority !== priority &&
-          item.delay !== delay
-        )
-
-        commands = [...tempCmds];
 
         setTimeout(async () => {
-            await cb();
+            const command = findHighestPriorityCmd();
 
-            if (delay && cleanup) {
+            if (executingCmd?.permanent && !command.reset) {
+                commands.push({ ...executingCmd });
+            }
+
+            executingCmd = command;
+            await command.cb();
+
+            if (command.delay && command.cleanup) {
                 setTimeout(async () => {
-                    await cleanup();
+                    await command.cleanup();
                     executing = false;
 
                     if (commands.length > 0) {
                         runCommand();
                     }
-                 }, delay);
+                 }, command.delay);
             } else if (commands.length > 0) {
                 runCommand();
+            } else {
+                executing = false;
             }
         }, 100)
     }
+
+    runCommand();
 }
 
 export async function clockVersion(port) {
@@ -88,6 +93,7 @@ export async function clockVersion(port) {
         ])),
         priority: 3,
         timestamp: performance.now(),
+        name: 'clockVersion',
     })
 }
 
@@ -101,20 +107,24 @@ export async function sendTextToClock(port, text = '', time) {
             ...arr,
             0,
             0])),
-        priority: time ? 2 : 1,
+        priority: time ? 2 : 1, // text,2s (prio=2), text permanent (prio=1)
         timestamp: performance.now(),
-        time,
-        cleanup: time ? () => clearTextFromClock(port) : undefined,
+        delay: time,
+        cleanup: time ? () => clearTextFromClock(port, 4) : undefined,
+        name: 'sendTextToClock',
+        permanent: !time,
     })
 }
 
-export async function clearTextFromClock(port) {
+export async function clearTextFromClock(port, priority = 0) {
     stateMachine({
         cb: () => write(port, new Uint8Array([
             ...DGT_COMMAND_CLOCK_END
         ])),
-        priority: 0,
+        priority,
         timestamp: performance.now(),
+        name: 'clearTextFromClock',
+        reset: true,
     })
 }
 
@@ -125,6 +135,7 @@ export async function readClock(port) {
         ])),
         priority: 3,
         timestamp: performance.now(),
+        name: 'readClock',
     })
 }
 
@@ -143,6 +154,7 @@ export async function setTime(port, minutes = 5, seconds = 0, otherMinutes = 5, 
         ])),
         priority: 3,
         timestamp: performance.now(),
+        name: 'setTime',
     })
 }
 
@@ -153,5 +165,6 @@ export async function readButton(port) {
         ])),
         priority: 3,
         timestamp: performance.now(),
+        name: 'readButton',
     })
 }

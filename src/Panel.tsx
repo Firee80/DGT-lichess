@@ -52,9 +52,6 @@ export function Panel() {
     }, []);
 
     useEffect(() => {
-        if (!myTurn) {
-            return;
-        }
         // my turn
         if (lichessFEN !== dgtFEN) {
             // boards off sync
