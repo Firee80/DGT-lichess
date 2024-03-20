@@ -20,6 +20,11 @@ export function useLichess(): ILichess {
     const [whiteProfile, setWhiteProfile] = useState<IProfile|undefined>();
     const [game, setGame] = useState<IGamePartial|undefined>();
 
+    const writeTextToDgtClock = (text: string, delay?: number): void => {
+        // @ts-ignore
+        window.dgt?.clock?.setText?.(text, delay)
+    }
+
     // update pieces from fen change
     useEffect(() => {
         setPieces(convertFENToPieces(fen));
@@ -37,17 +42,14 @@ export function useLichess(): ILichess {
             rating,
         } = opponentProfile ?? {};
 
-        // @ts-ignore
-        window.dgt?.clock?.setText?.(`${name.toUpperCase()}`, 4000);
-        // @ts-ignore
-        window.dgt?.clock?.setText?.(`${rating}`, 4000);
+        writeTextToDgtClock(`${name.toUpperCase()}`, 4000);
+        writeTextToDgtClock(`${rating}`, 4000);
     }, [blackProfile, whiteProfile, profile, isPlaying]);
 
     // show game result at game end on DGT clock
     useEffect(() => {
         if (gameResult && !isPlaying) {
-            // @ts-ignore
-            window.dgt?.clock?.setText?.(gameResult, 10000)
+            writeTextToDgtClock(gameResult, 8000);
         }
     }, [gameResult, isPlaying]);
 
@@ -150,7 +152,7 @@ export function useLichess(): ILichess {
         setWhiteProfile(undefined);
         setGame(undefined);
         // @ts-ignore
-        window.dgt?.clock?.clearText?.();
+        window.dgt?.clock?.clearText?.(4);
         // @ts-ignore
         window.dgt?.clock?.setTime?.(0, 0, 0, 0, 0);
 
@@ -271,9 +273,7 @@ export function useLichess(): ILichess {
             increment,
         } = parameters;
 
-        // @ts-ignore
-        window.dgt?.clock?.setText?.(`${minutes} + ${increment}`);
-
+        writeTextToDgtClock(`${minutes} + ${increment}`);
         setSeekLoading(true);
 
         const gameObj = await seekGameId(parameters, password);
@@ -302,7 +302,7 @@ export function useLichess(): ILichess {
             } = data;
 
             // @ts-ignore
-            window.dgt?.sendCustom?.(0x2b, 0x04, 0x03, 0x0b, 0x01, 0x00);
+            window.dgt?.clock?.beep?.(100);
 
             setBlackProfile({
                 name: black.name ?? 'Anonymous',
@@ -317,8 +317,6 @@ export function useLichess(): ILichess {
                 provisional: white.provisional ?? false,
                 title: white.title ?? '',
             })
-
-            debugger;
 
             if (white.name === prof.userName) {
                 setMyColor(Color.White);
@@ -369,8 +367,9 @@ export function useLichess(): ILichess {
               status === GameStatus.Mate ||
               status === GameStatus.Draw
             ) {
+                writeTextToDgtClock(status.toUpperCase(), 2000);
                 // @ts-ignore
-                window.dgt?.sendCustom?.(0x2b, 0x04, 0x03, 0x0b, 0x10, 0x00);
+                window.dgt?.clock?.beep?.(1000);
             }
 
             if (winner === Color.White) {

@@ -49,6 +49,8 @@ export function Panel() {
 
     useEffect(() => {
         dgtAPI.connect();
+
+        return dgtAPI.disconnect;
     }, []);
 
     useEffect(() => {

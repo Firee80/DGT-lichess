@@ -8,6 +8,9 @@ import {
     DGT_COMMAND_CLOCK_SET_AND_RUN,
     DGT_COMMAND_CLOCK_BUTTON,
     DGT_COMMAND_CLOCK_VERSION,
+    DGT_CLOCK_MESSAGE,
+    DGT_CMD_CLOCK_BEEP,
+    DGT_CMD_CLOCK_END,
 } from "./constants.ts";
 
 let commands: ClockCommand[] = [];
@@ -166,5 +169,25 @@ export async function readButton(port) {
         priority: 3,
         timestamp: performance.now(),
         name: 'readButton',
+    })
+}
+
+export async function beep(port, time) {
+    const beepTime = time > 64 ? Math.floor(time / 64) : 1;
+
+    stateMachine({
+        cb: () => write(port, new Uint8Array([
+            DGT_CLOCK_MESSAGE,         // 0x2b
+            4,                         // 0x04
+            DGT_CMD_CLOCK_END,         // 0x03
+            DGT_CMD_CLOCK_BEEP,        // 0x0b
+            beepTime,                  // multiples of 64ms
+            0,                         // 0x00
+        ])),
+        priority: 3,
+        timestamp: performance.now(),
+        delay: time,
+        cleanup: () => {},
+        name: 'beep',
     })
 }

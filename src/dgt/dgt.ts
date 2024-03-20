@@ -12,6 +12,7 @@ import {
   readClock,
   setTime,
   readButton,
+  beep,
 } from './clock.ts'
 
 import {
@@ -88,7 +89,8 @@ function setupDGTAPI(port) {
       clock: {
         setTime: (...time) => setTime(port, ...time),
         setText: (text, delay) => sendTextToClock(port, text, delay),
-        clearText: () => clearTextFromClock(port),
+        clearText: (priority) => clearTextFromClock(port, priority),
+        beep: (time) => beep(port, time),
 
         getTime: () => readClock(port),
         getVersion: () => clockVersion(port),
