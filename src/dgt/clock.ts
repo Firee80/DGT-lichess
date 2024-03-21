@@ -37,10 +37,11 @@ function stateMachine(cmd: ClockCommand) {
         return;
     }
 
-    const findHighestPriorityCmd = (): ClockCommand => {
+    const findHighestPriorityCmd = (pop: boolean = true): ClockCommand => {
         let result = {
             cb: () => {},
             priority: -1,
+            name: '',
         };
 
         commands.forEach(item => {
@@ -49,9 +50,11 @@ function stateMachine(cmd: ClockCommand) {
             }
         })
 
-        let tempCommands = [...commands];
-        tempCommands = tempCommands.filter(item => item.id !== result.id)
-        commands = [...tempCommands];
+        if (pop) {
+            let tempCommands = [...commands];
+            tempCommands = tempCommands.filter(item => item.id !== result.id)
+            commands = [...tempCommands];
+        }
 
         return result;
     }
@@ -62,7 +65,7 @@ function stateMachine(cmd: ClockCommand) {
         setTimeout(async () => {
             const command = findHighestPriorityCmd();
 
-            if (executingCmd?.permanent && !command.reset) {
+            if (executingCmd?.permanent && !command.reset && !command.permanent) {
                 commands.push({ ...executingCmd });
             }
 
@@ -71,7 +74,10 @@ function stateMachine(cmd: ClockCommand) {
 
             if (command.delay && command.cleanup) {
                 setTimeout(async () => {
-                    await command.cleanup();
+                    // if next command same -> skip cleanup
+                    if (command.name !== findHighestPriorityCmd(false).name) {
+                        await command.cleanup();
+                    }
                     executing = false;
 
                     if (commands.length > 0) {
